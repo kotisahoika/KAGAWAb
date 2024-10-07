@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>チームB チェックインページ（香川版）</title>
+    <style>
+        body {
+            background-color: #222;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        button {
+            background-color: #555;
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #777;
+        }
+        .score-info {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>チームB チェックインページ（香川版）</h1>
+    <div id="loginDiv">
+        <input type="password" id="passwordInput" placeholder="パスワードを入力">
+        <button id="loginButton">ログイン</button>
+    </div>
+    <div class="score-info" id="scoreDiv" style="display:none;">
+        <p>得点: <span id="score">0</span></p>
+        <p>最終チェックイン時刻: <span id="lastCheckin">未チェックイン</span></p>
+    </div>
+    <button id="checkInButton" style="display:none;">チェックイン</button>
+
+    <script>
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbwbfVrBJR-5jcZkTwP2Oz71lNCp6cndMbWnenNGpb9duaHwBInP0OTnxT-62E74CSBh/exec';
+        const TEAM_NAME = 'チームB';
+        const TEAM_PASSWORD = 'dPLrO';
+        let score = 0;
+        let lastCheckinTime = '未チェックイン';
+
+        function fetchScore() {
+            fetch(GAS_URL + '?action=getScores&team=' + TEAM_NAME)
+                .then(response => response.json())
+                .then(data => {
+                    score = data.score;
+                    lastCheckinTime = data.lastCheckin;
+                    document.getElementById('score').innerText = score;
+                    document.getElementById('lastCheckin').innerText = lastCheckinTime;
+                });
+        }
+
+        function checkIn() {
+            navigator.geolocation.getCurrentPosition((position) => {
+                const userLat = position.coords.latitude;
+                const userLng = position.coords.longitude;
+
+                const locations = [
+                    { name: '高松駅', lat: 34.35063067752835, lng: 134.0462416992097, points: 100 },
+                    { name: '香川県庁', lat: 34.34001823952227, lng: 134.04440589843867, points: 100 },
+                    { name: '高松市役所', lat: 34.342763984224945, lng: 134.0467990873059, points: 100 }
+                ];
+
+                let checkinSuccessful = false;
+                locations.forEach(location => {
+                    const distance = Math.sqrt(Math.pow(userLat - location.lat, 2) + Math.pow(userLng - location.lng, 2)) * 111000;
+                    if (distance <= 300) {
+                        checkinSuccessful = true;
+                        const data = {
+                            team: TEAM_NAME,
+                            location: location.name,
+                            points: location.points
+                        };
+
+                        fetch(GAS_URL, {
+                            method: 'POST',
+                            body: JSON.stringify(data),
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        })
+                        .then(response => response.json())
+                        .then(result => {
+                            if (result.success) {
+                                lastCheckinTime = new Date().toLocaleString();
+                                score += location.points;
+                                document.getElementById('score').innerText = score;
+                                document.getElementById('lastCheckin').innerText = lastCheckinTime;
+
+                                fetch(GAS_URL + '?action=sendLineNotification', {
+                                    method: 'POST',
+                                    body: JSON.stringify({
+                                        team: TEAM_NAME,
+                                        location: location.name,
+                                        points: location.points
+                                    }),
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    }
+                                });
+                            } else {
+                                alert('チェックイン処理に失敗しました。');
+                            }
+                        });
+                    }
+                });
+
+                if (!checkinSuccessful) {
+                    alert('チェックイン地点が近くにありません。');
+                }
+            });
+        }
+
+        document.getElementById('loginButton').onclick = () => {
+            const password = document.getElementById('passwordInput').value;
+            if (password === TEAM_PASSWORD) {
+                document.getElementById('loginDiv').style.display = 'none';
+                document.getElementById('scoreDiv').style.display = 'block';
+                document.getElementById('checkInButton').style.display = 'block';
+                fetchScore();
+            } else {
+                alert('パスワードが間違っています。');
+            }
+        };
+
+        document.getElementById('checkInButton').onclick = () => {
+            checkIn();
+        };
+    </script>
+</body>
+</html>
