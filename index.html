@@ -15,12 +15,24 @@
             border: none;
             padding: 10px;
             cursor: pointer;
+            border-radius: 5px;
+            font-size: 1em;
+            transition: background-color 0.3s;
         }
         button:hover {
             background-color: #777;
         }
         .score-info {
             margin-top: 20px;
+        }
+        #loginDiv {
+            text-align: center;
+            margin-top: 50px;
+        }
+        #message {
+            margin-top: 20px;
+            font-size: 1.2em;
+            color: #4CAF50; /* 成功時のメッセージ色 */
         }
     </style>
 </head>
@@ -35,9 +47,10 @@
         <p>最終チェックイン時刻: <span id="lastCheckin">未チェックイン</span></p>
     </div>
     <button id="checkInButton" style="display:none;">チェックイン</button>
+    <div id="message"></div> <!-- メッセージ表示用の要素 -->
 
     <script>
-        const GAS_URL = 'https://script.google.com/macros/s/AKfycbwbfVrBJR-5jcZkTwP2Oz71lNCp6cndMbWnenNGpb9duaHwBInP0OTnxT-62E74CSBh/exec';
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbwbfVrBJR-5jcZkTwP2Oz71lNCp6cndMbWnenNGpb9duaHwBInP0OTnxT-62E74CSBh/exec'; // GASのURL
         const TEAM_NAME = 'チームB';
         const TEAM_PASSWORD = 'dPLrO';
         let score = 0;
@@ -54,6 +67,22 @@
                 });
         }
 
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; // 地球の半径（メートル）
+            const φ1 = lat1 * Math.PI / 180;
+            const φ2 = lat2 * Math.PI / 180;
+            const Δφ = (lat2 - lat1) * Math.PI / 180;
+            const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+            const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+                      Math.cos(φ1) * Math.cos(φ2) *
+                      Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+            const distance = R * c;
+            return distance; // メートル単位で距離を返す
+        }
+
         function checkIn() {
             navigator.geolocation.getCurrentPosition((position) => {
                 const userLat = position.coords.latitude;
@@ -67,8 +96,8 @@
 
                 let checkinSuccessful = false;
                 locations.forEach(location => {
-                    const distance = Math.sqrt(Math.pow(userLat - location.lat, 2) + Math.pow(userLng - location.lng, 2)) * 111000;
-                    if (distance <= 300) {
+                    const distance = calculateDistance(userLat, userLng, location.lat, location.lng);
+                    if (distance <= 300) { // 300m以内
                         checkinSuccessful = true;
                         const data = {
                             team: TEAM_NAME,
@@ -91,26 +120,18 @@
                                 document.getElementById('score').innerText = score;
                                 document.getElementById('lastCheckin').innerText = lastCheckinTime;
 
-                                fetch(GAS_URL + '?action=sendLineNotification', {
-                                    method: 'POST',
-                                    body: JSON.stringify({
-                                        team: TEAM_NAME,
-                                        location: location.name,
-                                        points: location.points
-                                    }),
-                                    headers: {
-                                        'Content-Type': 'application/json'
-                                    }
-                                });
+                                // チェックイン成功メッセージを表示
+                                document.getElementById('message').innerHTML = 
+                                    `チェックイン成功！<br>地点: ${location.name}<br>得点: ${location.points}点<br>チェックイン時刻: ${lastCheckinTime}`;
                             } else {
-                                alert('チェックイン処理に失敗しました。');
+                                document.getElementById('message').innerText = 'チェックイン処理に失敗しました。'; // 失敗メッセージ表示
                             }
                         });
                     }
                 });
 
                 if (!checkinSuccessful) {
-                    alert('チェックイン地点が近くにありません。');
+                    document.getElementById('message').innerText = 'チェックイン地点が近くにありません。'; // 失敗メッセージ表示
                 }
             });
         }
@@ -123,7 +144,7 @@
                 document.getElementById('checkInButton').style.display = 'block';
                 fetchScore();
             } else {
-                alert('パスワードが間違っています。');
+                document.getElementById('message').innerText = 'パスワードが間違っています。'; // 失敗メッセージ表示
             }
         };
 
