@@ -9,44 +9,27 @@
             background-color: #1a1a1a;
             color: white;
             font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
             text-align: center;
+            margin: 0;
+            padding: 20px;
         }
-        button {
-            background-color: #4CAF50;
-            color: white;
+        input, button {
+            padding: 10px;
+            font-size: 1em;
+            margin: 10px;
+            border-radius: 5px;
             border: none;
-            padding: 15px;
-            cursor: pointer;
-            font-size: 1.2em;
-            border-radius: 10px;
-            margin-top: 20px;
+            background-color: #333;
+            color: white;
             width: 80%;
             max-width: 300px;
         }
         button:hover {
             background-color: #45a049;
         }
-        input {
-            padding: 10px;
-            font-size: 1.2em;
-            margin: 10px;
-            width: 80%;
-            max-width: 300px;
-            border-radius: 5px;
-            border: none;
-            background-color: #333;
-            color: white;
-        }
-        .score-info, #message {
+        #message {
             margin-top: 20px;
             font-size: 1.2em;
-        }
-        #loginDiv {
-            margin-top: 50px;
-        }
-        #message {
             color: #4CAF50;
         }
     </style>
@@ -57,134 +40,72 @@
         <input type="password" id="passwordInput" placeholder="パスワードを入力">
         <button id="loginButton">ログイン</button>
     </div>
-    <div class="score-info" id="scoreDiv" style="display:none;">
-        <p>得点: <span id="score">0</span></p>
-        <p>最終チェックイン時刻: <span id="lastCheckin">未チェックイン</span></p>
+    <div id="checkInDiv" style="display:none;">
+        <h2>チェックイン</h2>
+        <button id="checkInButton">チェックインする</button>
+        <div id="message"></div>
     </div>
-    <button id="checkInButton" style="display:none;">チェックイン</button>
-    <div id="message"></div>
 
     <script>
-        const GAS_URL = 'https://script.google.com/macros/s/AKfycbwDHIdHXswGBUwdlZeU0zedo8hPmqD1EcS3nFZpGqRZnumq8i91uEVBAL0p4IpOqEWE/exec'; // 香川県版用GASのURL
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbxFT38B3X3Qa-I38iMh_LQ8r_43Kia8XjmxtPLSLgEaX4rTMNYbDu_8sukdsiCVzUyUeg/exec';
         const TEAM_NAME = 'チームB';
         const TEAM_PASSWORD = 'dPLrO';
-        let score = 0;
-        let lastCheckinTime = '未チェックイン';
-        let END_TIME; // 終了時刻をここで管理
-
-        function fetchEndTime() {
-            fetch(GAS_URL + '?action=getEndTime')
-                .then(response => response.json())
-                .then(data => {
-                    END_TIME = new Date(data.endTime);
-                });
-        }
-
-        function fetchScore() {
-            fetch(GAS_URL + '?action=getScores&team=' + TEAM_NAME)
-                .then(response => response.json())
-                .then(data => {
-                    score = data.score;
-                    lastCheckinTime = data.lastCheckin;
-                    document.getElementById('score').innerText = score;
-                    document.getElementById('lastCheckin').innerText = lastCheckinTime;
-                });
-        }
-
-        function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371e3; // 地球の半径（メートル）
-            const φ1 = lat1 * Math.PI / 180;
-            const φ2 = lat2 * Math.PI / 180;
-            const Δφ = (lat2 - lat1) * Math.PI / 180;
-            const Δλ = (lon2 - lon1) * Math.PI / 180;
-
-            const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-                      Math.cos(φ1) * Math.cos(φ2) *
-                      Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-            return R * c; // メートル単位で距離を返す
-        }
-
-        function checkIn() {
-            const currentTime = new Date();
-            const oneHourBeforeEnd = new Date(END_TIME.getTime() - (1 * 60 * 60 * 1000)); // 終了時刻の1時間前
-
-            if (currentTime >= oneHourBeforeEnd) {
-                document.getElementById('message').innerText = '終了1時間前のため、LINE通知は行われませんがチェックインは成功しました！';
-            } else {
-                navigator.geolocation.getCurrentPosition((position) => {
-                    const userLat = position.coords.latitude;
-                    const userLng = position.coords.longitude;
-
-                    const locations = [
-                        { name: '高松駅', lat: 34.35063067752835, lng: 134.0462416992097, points: 100 },
-                        { name: '香川県庁', lat: 34.34001823952227, lng: 134.04440589843867, points: 150 },
-                        { name: '高松市役所', lat: 34.342763984224945, lng: 134.0467990873059, points: 100 }
-                    ];
-
-                    let checkinSuccessful = false;
-                    locations.forEach(location => {
-                        const distance = calculateDistance(userLat, userLng, location.lat, location.lng);
-                        if (distance <= 300) {
-                            checkinSuccessful = true;
-                            const data = {
-                                team: TEAM_NAME,
-                                location: location.name,
-                                points: location.points
-                            };
-
-                            fetch(GAS_URL, {
-                                method: 'POST',
-                                body: JSON.stringify(data),
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                }
-                            })
-                            .then(response => response.json())
-                            .then(result => {
-                                if (result.success) {
-                                    lastCheckinTime = new Date().toLocaleString();
-                                    score += location.points;
-                                    document.getElementById('score').innerText = score;
-                                    document.getElementById('lastCheckin').innerText = lastCheckinTime;
-
-                                    document.getElementById('message').innerHTML = 
-                                        `チェックイン成功！<br>地点: ${location.name}<br>得点: ${location.points}点<br>チェックイン時刻: ${lastCheckinTime}`;
-                                } else {
-                                    document.getElementById('message').innerText = 'チェックイン処理に失敗しました。';
-                                }
-                            });
-                        }
-                    });
-
-                    if (!checkinSuccessful) {
-                        document.getElementById('message').innerText = 'チェックイン地点が近くにありません。';
-                    }
-                });
-            }
-        }
 
         document.getElementById('loginButton').onclick = () => {
             const password = document.getElementById('passwordInput').value;
             if (password === TEAM_PASSWORD) {
                 document.getElementById('loginDiv').style.display = 'none';
-                document.getElementById('scoreDiv').style.display = 'block';
-                document.getElementById('checkInButton').style.display = 'block';
-                fetchScore();
+                document.getElementById('checkInDiv').style.display = 'block';
+                document.getElementById('message').innerText = '';
             } else {
                 document.getElementById('message').innerText = 'パスワードが間違っています。';
             }
         };
 
         document.getElementById('checkInButton').onclick = () => {
-            checkIn();
-        };
+            navigator.geolocation.getCurrentPosition((position) => {
+                const userLat = position.coords.latitude;
+                const userLng = position.coords.longitude;
 
-        // ページ読み込み時に終了時刻を取得
-        window.onload = () => {
-            fetchEndTime();
-            fetchScore();
+                const locations = [
+                    { name: '高松駅', lat: 34.35063067752835, lng: 134.0462416992097, points: 100 },
+                    { name: '香川県庁', lat: 34.34001823952227, lng: 134.04440589843867, points: 150 },
+                    { name: '高松市役所', lat: 34.342763984224945, lng: 134.0467990873059, points: 100 }
+                ];
+
+                let checkinSuccessful = false;
+                locations.forEach(location => {
+                    const distance = Math.sqrt(Math.pow(userLat - location.lat, 2) + Math.pow(userLng - location.lng, 2)) * 111000; 
+                    if (distance <= 300) {
+                        checkinSuccessful = true;
+                        const data = {
+                            team: TEAM_NAME,
+                            location: location.name,
+                            points: location.points
+                        };
+
+                        fetch(GAS_URL, {
+                            method: 'POST',
+                            body: JSON.stringify(data),
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        })
+                        .then(response => response.json())
+                        .then(result => {
+                            if (result.success) {
+                                document.getElementById('message').innerText = `${location.name}にチェックインしました！${location.points}点獲得しました！`;
+                            } else {
+                                document.getElementById('message').innerText = 'チェックインに失敗しました。' + (result.error || '');
+                            }
+                        });
+                    }
+                });
+
+                if (!checkinSuccessful) {
+                    document.getElementById('message').innerText = '近くにチェックイン地点がありません。';
+                }
+            });
         };
     </script>
 </body>
