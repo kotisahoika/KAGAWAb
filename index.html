@@ -2,35 +2,34 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>チームB チェックインページ（香川県版）</title>
     <style>
         body {
-            background-color: #1a1a1a;
+            background-color: #222;
             color: white;
             font-family: Arial, sans-serif;
-            text-align: center;
-            margin: 0;
-            padding: 20px;
         }
-        input, button {
-            padding: 10px;
-            font-size: 1em;
-            margin: 10px;
-            border-radius: 5px;
-            border: none;
-            background-color: #333;
+        button {
+            background-color: #555;
             color: white;
-            width: 80%;
-            max-width: 300px;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
         }
         button:hover {
-            background-color: #45a049;
+            background-color: #777;
         }
-        #message {
+        .score-info {
             margin-top: 20px;
-            font-size: 1.2em;
-            color: #4CAF50;
+        }
+        @media (max-width: 600px) {
+            body {
+                font-size: 16px;
+            }
+            button {
+                width: 100%;
+                padding: 12px;
+            }
         }
     </style>
 </head>
@@ -40,29 +39,31 @@
         <input type="password" id="passwordInput" placeholder="パスワードを入力">
         <button id="loginButton">ログイン</button>
     </div>
-    <div id="checkInDiv" style="display:none;">
-        <h2>チェックイン</h2>
-        <button id="checkInButton">チェックインする</button>
-        <div id="message"></div>
+    <div class="score-info" id="scoreDiv" style="display:none;">
+        <p>得点: <span id="score">0</span></p>
+        <p>最終チェックイン時刻: <span id="lastCheckin">未チェックイン</span></p>
     </div>
+    <button id="checkInButton" style="display:none;">チェックイン</button>
 
     <script>
-        const GAS_URL = 'https://script.google.com/macros/s/AKfycbyElsflWXuqRAHp_6YvEC28838xcpwXu0lCL5QR6M6r4_u7EMTdetZz0HPT1co4UoSiNg/exec'; // 正しいGASのURLを設定
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbxu3OCRFkIaaCAxzV_a0GbV4RqSkuFJm8QfcelV6gad3j5JxUWNVZOc4WJHC-D-enYsqQ/exec';
         const TEAM_NAME = 'チームB';
         const TEAM_PASSWORD = 'dPLrO';
+        let score = 0;
+        let lastCheckinTime = '未チェックイン';
 
-        document.getElementById('loginButton').onclick = () => {
-            const password = document.getElementById('passwordInput').value;
-            if (password === TEAM_PASSWORD) {
-                document.getElementById('loginDiv').style.display = 'none';
-                document.getElementById('checkInDiv').style.display = 'block';
-                document.getElementById('message').innerText = '';
-            } else {
-                document.getElementById('message').innerText = 'パスワードが間違っています。';
-            }
-        };
+        function fetchScore() {
+            fetch(GAS_URL + '?action=getScores&team=' + TEAM_NAME)
+                .then(response => response.json())
+                .then(data => {
+                    score = data.data.scores[1]?.score || 0;
+                    lastCheckinTime = data.data.scores[1]?.lastCheckin || '未チェックイン';
+                    document.getElementById('score').innerText = score;
+                    document.getElementById('lastCheckin').innerText = lastCheckinTime;
+                });
+        }
 
-        document.getElementById('checkInButton').onclick = () => {
+        function checkIn() {
             navigator.geolocation.getCurrentPosition((position) => {
                 const userLat = position.coords.latitude;
                 const userLng = position.coords.longitude;
@@ -75,10 +76,11 @@
 
                 let checkinSuccessful = false;
                 locations.forEach(location => {
-                    const distance = Math.sqrt(Math.pow(userLat - location.lat, 2) + Math.pow(userLng - location.lng, 2)) * 111000; 
+                    const distance = Math.sqrt(Math.pow(userLat - location.lat, 2) + Math.pow(userLng - location.lng, 2)) * 111000;
                     if (distance <= 300) {
                         checkinSuccessful = true;
                         const data = {
+                            action: 'checkIn',
                             team: TEAM_NAME,
                             location: location.name,
                             points: location.points
@@ -94,18 +96,37 @@
                         .then(response => response.json())
                         .then(result => {
                             if (result.success) {
-                                document.getElementById('message').innerText = `${location.name}にチェックインしました！${location.points}点獲得しました！`;
+                                lastCheckinTime = new Date().toLocaleString();
+                                score += location.points;
+                                document.getElementById('score').innerText = score;
+                                document.getElementById('lastCheckin').innerText = lastCheckinTime;
                             } else {
-                                document.getElementById('message').innerText = 'チェックインに失敗しました。' + (result.error || '');
+                                alert(result.error || 'チェックイン処理に失敗しました。');
                             }
                         });
                     }
                 });
 
                 if (!checkinSuccessful) {
-                    document.getElementById('message').innerText = '近くにチェックイン地点がありません。';
+                    alert('チェックイン地点が近くにありません。');
                 }
             });
+        }
+
+        document.getElementById('loginButton').onclick = () => {
+            const password = document.getElementById('passwordInput').value;
+            if (password === TEAM_PASSWORD) {
+                document.getElementById('loginDiv').style.display = 'none';
+                document.getElementById('scoreDiv').style.display = 'block';
+                document.getElementById('checkInButton').style.display = 'block';
+                fetchScore();
+            } else {
+                alert('パスワードが間違っています。');
+            }
+        };
+
+        document.getElementById('checkInButton').onclick = () => {
+            checkIn();
         };
     </script>
 </body>
